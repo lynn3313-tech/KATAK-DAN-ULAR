@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lompat Katak: Ular & Tangga</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            background: linear-gradient(135deg, #0f380f 0%, #1a472a 50%, #2d5a27 100%);
+            color: #f0fdf4;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        /* 3D Dice styling */
+        .dice-container {
+            perspective: 600px;
+        }
+        .dice {
+            width: 70px;
+            height: 70px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 1s ease-out;
+        }
+        .dice-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            background: radial-gradient(circle, #ffffff 60%, #e2e8f0 100%);
+            border: 3px solid #1e293b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .dice-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #0f172a;
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #22c55e;
+            border-radius: 8px;
+        }
+
+        /* Pulse glow animation for active player */
+        @keyframes activeGlow {
+            0% { box-shadow: 0 0 5px #22c55e, inset 0 0 5px #22c55e; }
+            50% { box-shadow: 0 0 20px #4ade80, inset 0 0 10px #4ade80; }
+            100% { box-shadow: 0 0 5px #22c55e, inset 0 0 5px #22c55e; }
+        }
+        .active-turn {
+            animation: activeGlow 1.8s infinite;
+            border-color: #4ade80 !important;
+        }
+
+        /* Board Canvas Styling */
+        #boardCanvas {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+            border-radius: 16px;
+            background-color: #14532d;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Header Navbar -->
+    <header class="bg-emerald-900/80 backdrop-blur-md border-b border-emerald-700/50 py-3 px-4 sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl text-emerald-400"><i class="fa-solid fa-frog"></i></span>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-wide text-emerald-100 flex items-center gap-2">
+                        Lompat Katak <span class="text-xs bg-emerald-700 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-500">Ular & Tangga</span>
+                    </h1>
+                    <p class="text-xs text-emerald-300">Permainan Papan 4 Pemain & Pengumpulan Mata</p>
+                </div>
+            </div>
+            <button id="btnRules" class="bg-emerald-800 hover:bg-emerald-700 text-emerald-100 px-3 py-1.5 rounded-lg text-sm border border-emerald-600 transition flex items-center gap-2">
+                <i class="fa-solid fa-circle-info"></i> <span class="hidden sm:inline">Peraturan</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 flex flex-col lg:flex-row gap-5 items-start">
+        
+        <!-- Left: Game Board Section -->
+        <div class="w-full lg:w-7/12 flex flex-col items-center justify-center">
+            <div class="relative w-full aspect-square max-w-[650px] flex items-center justify-center">
+                <canvas id="boardCanvas" width="800" height="800" class="w-full h-full object-contain border-4 border-emerald-800/80"></canvas>
+            </div>
+        </div>
+
+        <!-- Right: Controls, Scoreboard & Dice Roll -->
+        <div class="w-full lg:w-5/12 flex flex-col gap-4">
+            
+            <!-- Turn & Dice Control Box -->
+            <div class="bg-emerald-900/70 border-2 border-emerald-600/60 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-300">Giliran Semasa</span>
+                    <span id="turnCounter" class="text-xs bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-700 text-emerald-400">Pusingan 1</span>
+                </div>
+
+                <!-- Active Player Banner -->
+                <div id="activePlayerCard" class="flex items-center gap-4 bg-emerald-950/80 p-3 rounded-xl border border-emerald-700 transition-all duration-300 mb-5">
+                    <div id="activePlayerColorDot" class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl shadow-inner border-2 border-white/50">
+                        <i class="fa-solid fa-frog"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div id="activePlayerName" class="font-bold text-lg text-white">Pemain 1</div>
+                        <div id="activePlayerStatus" class="text-xs text-emerald-400">Sedia untuk baling dadu!</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-emerald-400">Kedudukan</div>
+                        <div id="activePlayerPos" class="font-black text-xl text-yellow-400">Petak 1</div>
+                    </div>
+                </div>
+
+                <!-- Dice Area -->
+                <div class="flex items-center justify-around bg-emerald-950/50 p-4 rounded-xl border border-emerald-800/80">
+                    <!-- 3D Visual Dice -->
+                    <div class="dice-container">
+                        <div id="diceVisual" class="dice">
+                            <div class="dice-face font-bold text-3xl text-emerald-900">?</div>
+                        </div>
+                    </div>
+
+                    <!-- Roll Action Button -->
+                    <div class="flex flex-col gap-2">
+                        <button id="btnRollDice" disabled class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 font-black text-lg px-6 py-3 rounded-xl shadow-lg border-2 border-amber-300 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-dice text-2xl"></i> GOLEK DADU
+                        </button>
+                        <span id="diceResultText" class="text-xs text-center text-emerald-300 h-4 font-semibold">Tekan Mula untuk bermain</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Scoreboard -->
+            <div class="bg-emerald-900/70 border-2 border-emerald-600/60 rounded-2xl p-4 shadow-xl backdrop-blur-sm flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-base font-bold text-emerald-200 flex items-center gap-2">
+                        <i class="fa-solid fa-trophy text-yellow-400"></i> Kedudukan & Mata Pemain
+                    </h2>
+                    <span class="text-xs text-emerald-400">4 Pemain</span>
+                </div>
+
+                <div id="scoreboardList" class="space-y-2.5 flex-1">
+                    <!-- Dynamic Player Score Cards will be injected here -->
+                </div>
+            </div>
+
+            <!-- Game Log Box -->
+            <div class="bg-emerald-950/80 border border-emerald-800 rounded-xl p-3 text-xs max-h-32 flex flex-col">
+                <span class="font-bold text-emerald-400 mb-1 flex items-center gap-1">
+                    <i class="fa-solid fa-scroll"></i> Log Permainan
+                </span>
+                <div id="gameLog" class="overflow-y-auto space-y-1 flex-1 text-emerald-200/90 font-mono pr-1">
+                    <p class="text-emerald-400/70 italic">Sila pilih warna pemain dan mulakan permainan.</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Player Selection Setup Modal -->
+    <div id="setupModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-gradient-to-b from-emerald-900 to-emerald-950 border-2 border-emerald-500/80 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <!-- Decorative Frogs Header -->
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-emerald-800 border-2 border-emerald-400 rounded-2xl mb-2 text-3xl text-emerald-300 shadow-lg">
+                    <i class="fa-solid fa-frog"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-black text-emerald-100 tracking-wide">Penyediaan Pemain</h2>
+                <p class="text-xs sm:text-sm text-emerald-300 mt-1">Pilih warna unik untuk setiap pemain (5 Pilihan Warna). Tiada warna yang boleh sama!</p>
+            </div>
+
+            <!-- Validation Error Alert -->
+            <div id="colorErrorAlert" class="hidden bg-rose-950/90 border border-rose-500 text-rose-200 text-xs sm:text-sm p-3 rounded-xl mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-rose-400 text-lg"></i>
+                <span id="colorErrorMsg">Warna bertindih! Setiap pemain mesti memilih warna yang berbeza.</span>
+            </div>
+
+            <!-- Player Setup Form (4 Players) -->
+            <div class="space-y-3.5 mb-6">
+                <!-- Player 1 -->
+                <div class="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800 flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-full bg-emerald-800 border border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-200">P1</span>
+                    <input type="text" id="p1Name" value="Katak Hijau" class="bg-emerald-900/90 border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-400 flex-1 font-semibold" placeholder="Nama Pemain 1">
+                    <select id="p1Color" class="color-select bg-emerald-900 border border-emerald-600 text-emerald-100 text-sm rounded-xl px-3 py-1.5 font-bold cursor-pointer focus:outline-none focus:border-emerald-400">
+                        <!-- Options generated dynamically -->
+                    </select>
+                </div>
+
+                <!-- Player 2 -->
+                <div class="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800 flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-full bg-emerald-800 border border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-200">P2</span>
+                    <input type="text" id="p2Name" value="Katak Merah" class="bg-emerald-900/90 border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-400 flex-1 font-semibold" placeholder="Nama Pemain 2">
+                    <select id="p2Color" class="color-select bg-emerald-900 border border-emerald-600 text-emerald-100 text-sm rounded-xl px-3 py-1.5 font-bold cursor-pointer focus:outline-none focus:border-emerald-400">
+                    </select>
+                </div>
+
+                <!-- Player 3 -->
+                <div class="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800 flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-full bg-emerald-800 border border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-200">P3</span>
+                    <input type="text" id="p3Name" value="Katak Biru" class="bg-emerald-900/90 border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-400 flex-1 font-semibold" placeholder="Nama Pemain 3">
+                    <select id="p3Color" class="color-select bg-emerald-900 border border-emerald-600 text-emerald-100 text-sm rounded-xl px-3 py-1.5 font-bold cursor-pointer focus:outline-none focus:border-emerald-400">
+                    </select>
+                </div>
+
+                <!-- Player 4 -->
+                <div class="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800 flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-full bg-emerald-800 border border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-200">P4</span>
+                    <input type="text" id="p4Name" value="Katak Kuning" class="bg-emerald-900/90 border border-emerald-700 text-emerald-100 text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-400 flex-1 font-semibold" placeholder="Nama Pemain 4">
+                    <select id="p4Color" class="color-select bg-emerald-900 border border-emerald-600 text-emerald-100 text-sm rounded-xl px-3 py-1.5 font-bold cursor-pointer focus:outline-none focus:border-emerald-400">
+                    </select>
+                </div>
+            </div>
+
+            <button id="btnStartGame" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-emerald-950 font-black text-lg py-3.5 rounded-2xl shadow-xl border-2 border-emerald-300 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2">
+                <i class="fa-solid fa-play"></i> MULAKAN PERMAINAN
+            </button>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rulesModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-emerald-900 border-2 border-emerald-600 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button id="btnCloseRules" class="absolute top-4 right-4 text-emerald-400 hover:text-white text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-xl font-bold text-emerald-100 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-book-open text-amber-400"></i> Peraturan Permainan
+            </h3>
+            <ul class="space-y-2.5 text-xs sm:text-sm text-emerald-200 list-disc list-inside">
+                <li><strong class="text-amber-300">4 Pemain:</strong> Semua pemain bertukar giliran untuk menggolek dadu.</li>
+                <li><strong class="text-emerald-300">Warna Unik:</strong> Setiap katak memilih 1 daripada 5 warna khas yang tidak boleh bertindih.</li>
+                <li><strong class="text-red-400">Dipatuk Ular:</strong> Jika mendarat di kepala ular, katak dimakan dan akan meluncur ke <span class="underline decoration-red-400">hujung ekor ular</span> untuk bersedia semula.</li>
+                <li><strong class="text-emerald-300">Memanjat Tangga (Buluh):</strong> Mendarat di pangkal tangga membolehkan katak memanjat terus ke atas & mendapat mata bonus!</li>
+                <li><strong class="text-yellow-300">Pengumpulan Mata:</strong>
+                    <ul class="pl-6 space-y-1 list-square text-emerald-300/90 mt-1">
+                        <li>+10 mata bagi setiap langkah pergerakan</li>
+                        <li>+50 mata bonus jika naik tangga</li>
+                        <li>+30 mata jika mendarat di Teratai Emas</li>
+                        <li>-20 mata jika dipatuk ular</li>
+                        <li>+200 mata bonus tamat untuk pemain pertama sampai ke petak 100!</li>
+                    </ul>
+                </li>
+                <li><strong class="text-amber-400">Penamat:</strong> Permainan tamat sebaik sahaja pemain pertama tiba di Petak 100. **Juara ditentukan oleh MATA TERTINGGI!**</li>
+            </ul>
+            <button id="btnGotIt" class="mt-6 w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl border border-emerald-500">
+                Faham & Kembali
+            </button>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victoryModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-gradient-to-b from-emerald-900 via-emerald-950 to-black border-4 border-amber-400 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden">
+            <!-- Animated Trophy Icon -->
+            <div class="relative inline-block my-2">
+                <div class="w-24 h-24 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-full flex items-center justify-center text-5xl text-amber-950 border-4 border-yellow-200 shadow-2xl mx-auto animate-bounce">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+            </div>
+
+            <h2 class="text-3xl font-black text-amber-300 uppercase tracking-wider mb-1">Permainan Tamat!</h2>
+            <p id="victorySubtitle" class="text-sm text-emerald-300 mb-6">Pemain pertama telah menamatkan perjalanan ke Petak 100!</p>
+
+            <!-- Final Leaderboard Box -->
+            <div id="finalLeaderboard" class="bg-emerald-950/90 border border-emerald-700 rounded-2xl p-4 mb-6 space-y-2 text-left">
+                <!-- Dynamically filled with top scores -->
+            </div>
+
+            <button id="btnPlayAgain" class="w-full bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-amber-950 font-black text-lg py-3.5 rounded-2xl shadow-xl border-2 border-amber-200 transition-all hover:scale-105 active:scale-95">
+                <i class="fa-solid fa-rotate-right"></i> MAIN SEMULA
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 5 Color Palette Options
+        const COLOR_OPTIONS = [
+            { id: 'emerald', name: 'Hijau Emerald', hex: '#10b981', dark: '#047857', border: '#a7f3d0' },
+            { id: 'ruby', name: 'Merah Ceria', hex: '#ef4444', dark: '#b91c1c', border: '#fca5a5' },
+            { id: 'azure', name: 'Biru Kolam', hex: '#3b82f6', dark: '#1d4ed8', border: '#bfdbfe' },
+            { id: 'amber', name: 'Kuning Emas', hex: '#f59e0b', dark: '#b45309', border: '#fde68a' },
+            { id: 'purple', name: 'Ungu Hutan', hex: '#8b5cf6', dark: '#6d28d9', border: '#ddd6fe' }
+        ];
+
+        // Snakes definition (Head -> Tail)
+        const SNAKES = {
+            98: 28,
+            84: 53,
+            73: 15,
+            56: 19,
+            44: 22,
+            34: 8
+        };
+
+        // Ladders definition (Bottom -> Top)
+        const LADDERS = {
+            4: 25,
+            12: 46,
+            29: 69,
+            41: 63,
+            62: 81,
+            71: 92
+        };
+
+        // Special Lotus Bonus Tiles (+30 pts)
+        const LOTUS_TILES = [18, 37, 50, 77, 89];
+
+        // Game State Variables
+        let players = [];
+        let currentTurnIndex = 0;
+        let roundCount = 1;
+        let isRolling = false;
+        let isMoving = false;
+        let gameOver = false;
+
+        // DOM Element References
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const btnRollDice = document.getElementById('btnRollDice');
+        const diceVisual = document.getElementById('diceVisual');
+        const diceResultText = document.getElementById('diceResultText');
+        const setupModal = document.getElementById('setupModal');
+        const colorErrorAlert = document.getElementById('colorErrorAlert');
+        const scoreboardList = document.getElementById('scoreboardList');
+        const gameLog = document.getElementById('gameLog');
+        const victoryModal = document.getElementById('victoryModal');
+
+        // Web Audio API Sound System
+        class SoundSystem {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playDiceRoll() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playHop() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(580, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playLadder() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [261.63, 329.63, 392.00, 523.25].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.15);
+                });
+            }
+
+            playSnake() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.4);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+
+            playVictory() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.12);
+                    osc.stop(now + idx * 0.12 + 0.3);
+                });
+            }
+        }
+
+        const sounds = new SoundSystem();
+
+        // Fill dropdowns with color options
+        function initSetupDropdowns() {
+            const selects = [
+                document.getElementById('p1Color'),
+                document.getElementById('p2Color'),
+                document.getElementById('p3Color'),
+                document.getElementById('p4Color')
+            ];
+
+            selects.forEach((select, pIdx) => {
+                select.innerHTML = '';
+                COLOR_OPTIONS.forEach((opt, cIdx) => {
+                    const option = document.createElement('option');
+                    option.value = opt.id;
+                    option.textContent = opt.name;
+                    // Default distinct selections
+                    if (cIdx === pIdx) option.selected = true;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Validate player color choices (No duplicate colors allowed)
+        function validateColors() {
+            const selected = [
+                document.getElementById('p1Color').value,
+                document.getElementById('p2Color').value,
+                document.getElementById('p3Color').value,
+                document.getElementById('p4Color').value
+            ];
+
+            const unique = new Set(selected);
+            if (unique.size < 4) {
+                colorErrorAlert.classList.remove('hidden');
+                document.getElementById('colorErrorMsg').textContent = 'Semua 4 pemain MESTI mempunyai warna yang berbeza!';
+                return false;
+            }
+            colorErrorAlert.classList.add('hidden');
+            return true;
+        }
+
+        // Start Game Handler
+        document.getElementById('btnStartGame').addEventListener('click', () => {
+            if (!validateColors()) return;
+
+            const names = [
+                document.getElementById('p1Name').value.trim() || 'Pemain 1',
+                document.getElementById('p2Name').value.trim() || 'Pemain 2',
+                document.getElementById('p3Name').value.trim() || 'Pemain 3',
+                document.getElementById('p4Name').value.trim() || 'Pemain 4'
+            ];
+
+            const colors = [
+                COLOR_OPTIONS.find(c => c.id === document.getElementById('p1Color').value),
+                COLOR_OPTIONS.find(c => c.id === document.getElementById('p2Color').value),
+                COLOR_OPTIONS.find(c => c.id === document.getElementById('p3Color').value),
+                COLOR_OPTIONS.find(c => c.id === document.getElementById('p4Color').value)
+            ];
+
+            players = names.map((name, idx) => ({
+                id: idx + 1,
+                name: name,
+                color: colors[idx],
+                position: 1,
+                score: 0,
+                ladders: 0,
+                snakes: 0,
+                isFinished: false
+            }));
+
+            currentTurnIndex = 0;
+            roundCount = 1;
+            gameOver = false;
+
+            setupModal.classList.add('hidden');
+            btnRollDice.disabled = false;
+            
+            addGameLog(`Permainan Bermula! Selamat bertanding.`);
+            updateUI();
+            drawBoard();
+        });
+
+        // Convert tile number (1-100) to grid X, Y (Boustrophedon / Zigzag)
+        function getTileCoordinates(tileNum) {
+            const index = tileNum - 1;
+            const row = Math.floor(index / 10); // 0 at bottom, 9 at top
+            let col = index % 10;
+
+            // Reverse column direction on odd rows (zigzag)
+            if (row % 2 === 1) {
+                col = 9 - col;
+            }
+
+            const tileSize = canvas.width / 10;
+            const x = col * tileSize + tileSize / 2;
+            const y = (9 - row) * tileSize + tileSize / 2; // inverted for canvas 0 at top
+
+            return { x, y, row, col, tileSize };
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const tileSize = canvas.width / 10;
+
+            // 1. Draw Tiles Grid
+            for (let tile = 1; tile <= 100; tile++) {
+                const { x, y, row, col } = getTileCoordinates(tile);
+                const isEven = (row + col) % 2 === 0;
+
+                // Alternate pond tile colors
+                ctx.fillStyle = isEven ? '#15803d' : '#166534';
+                ctx.fillRect(x - tileSize / 2, y - tileSize / 2, tileSize, tileSize);
+
+                // Tile Border
+                ctx.strokeStyle = '#14532d';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - tileSize / 2, y - tileSize / 2, tileSize, tileSize);
+
+                // Special Lotus Tile Highlight
+                if (LOTUS_TILES.includes(tile)) {
+                    ctx.fillStyle = 'rgba(253, 224, 71, 0.2)';
+                    ctx.fillRect(x - tileSize / 2, y - tileSize / 2, tileSize, tileSize);
+                    // Draw mini lotus flower icon
+                    ctx.fillStyle = '#fde047';
+                    ctx.font = '14px Fredoka';
+                    ctx.fillText('🪷', x + tileSize/4, y - tileSize/4);
+                }
+
+                // Tile Number
+                ctx.fillStyle = isEven ? 'rgba(240, 253, 244, 0.85)' : 'rgba(187, 247, 208, 0.85)';
+                ctx.font = 'bold 16px Fredoka';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(tile.toString(), x - tileSize / 2 + 6, y - tileSize / 2 + 4);
+            }
+
+            // Start & Finish Markers
+            const startCoord = getTileCoordinates(1);
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 12px Fredoka';
+            ctx.textAlign = 'center';
+            ctx.fillText('MULA', startCoord.x, startCoord.y + 18);
+
+            const finishCoord = getTileCoordinates(100);
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 12px Fredoka';
+            ctx.fillText('TAMAT 🏁', finishCoord.x, finishCoord.y + 18);
+
+            // 2. Draw Ladders (Bamboo/Wood Style)
+            for (const [startStr, endStr] of Object.entries(LADDERS)) {
+                const start = parseInt(startStr);
+                const end = parseInt(endStr);
+                const c1 = getTileCoordinates(start);
+                const c2 = getTileCoordinates(end);
+
+                ctx.save();
+                ctx.strokeStyle = '#f59e0b'; // Gold / Bamboo yellow
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+
+                // Main side rails
+                const dx = c2.x - c1.x;
+                const dy = c2.y - c1.y;
+                const dist = Math.hypot(dx, dy);
+                const nx = -dy / dist * 10;
+                const ny = dx / dist * 10;
+
+                // Left rail
+                ctx.beginPath();
+                ctx.moveTo(c1.x + nx, c1.y + ny);
+                ctx.lineTo(c2.x + nx, c2.y + ny);
+                ctx.stroke();
+
+                // Right rail
+                ctx.beginPath();
+                ctx.moveTo(c1.x - nx, c1.y - ny);
+                ctx.lineTo(c2.x - nx, c2.y - ny);
+                ctx.stroke();
+
+                // Rungs
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 4;
+                const steps = Math.floor(dist / 25);
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / (steps + 1);
+                    const rx = c1.x + dx * t;
+                    const ry = c1.y + dy * t;
+                    ctx.beginPath();
+                    ctx.moveTo(rx + nx, ry + ny);
+                    ctx.lineTo(rx - nx, ry - ny);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 3. Draw Snakes (Curved Viper Style)
+            for (const [headStr, tailStr] of Object.entries(SNAKES)) {
+                const head = parseInt(headStr);
+                const tail = parseInt(tailStr);
+                const c1 = getTileCoordinates(head);
+                const c2 = getTileCoordinates(tail);
+
+                ctx.save();
+                
+                // Snake Body Curve
+                const midX = (c1.x + c2.x) / 2 + (head % 2 === 0 ? 40 : -40);
+                const midY = (c1.y + c2.y) / 2;
+
+                // Draw Outer Snake Body
+                ctx.strokeStyle = '#dc2626'; // Vivid Red Snake Body
+                ctx.lineWidth = 14;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(c1.x, c1.y);
+                ctx.quadraticCurveTo(midX, midY, c2.x, c2.y);
+                ctx.stroke();
+
+                // Snake Pattern Strips
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 6;
+                ctx.setLineDash([8, 8]);
+                ctx.beginPath();
+                ctx.moveTo(c1.x, c1.y);
+                ctx.quadraticCurveTo(midX, midY, c2.x, c2.y);
+                ctx.stroke();
+
+                // Snake Head at Head Tile
+                ctx.fillStyle = '#991b1b';
+                ctx.beginPath();
+                ctx.arc(c1.x, c1.y, 14, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(c1.x - 4, c1.y - 3, 3, 0, Math.PI * 2);
+                ctx.arc(c1.x + 4, c1.y - 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(c1.x - 4, c1.y - 3, 1.5, 0, Math.PI * 2);
+                ctx.arc(c1.x + 4, c1.y - 3, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            // 4. Draw Frog Players
+            // Group players on same tile to offset their positions
+            const tileGroups = {};
+            players.forEach(p => {
+                if (!tileGroups[p.position]) tileGroups[p.position] = [];
+                tileGroups[p.position].push(p);
+            });
+
+            for (const [tile, playerList] of Object.entries(tileGroups)) {
+                const coord = getTileCoordinates(parseInt(tile));
+                const total = playerList.length;
+
+                playerList.forEach((p, idx) => {
+                    // Calculate small offset if multiple frogs are on the same tile
+                    let offsetX = 0;
+                    let offsetY = 0;
+                    if (total > 1) {
+                        const angle = (idx / total) * Math.PI * 2;
+                        offsetX = Math.cos(angle) * 14;
+                        offsetY = Math.sin(angle) * 14;
+                    }
+
+                    const px = coord.x + offsetX;
+                    const py = coord.y + offsetY;
+
+                    // Draw Frog Avatar
+                    ctx.save();
+                    
+                    // Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.beginPath();
+                    ctx.ellipse(px, py + 10, 12, 6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Body
+                    ctx.fillStyle = p.color.hex;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 14, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = p.color.border;
+                    ctx.stroke();
+
+                    // Frog Eyes (Cute Top Bumps)
+                    ctx.fillStyle = p.color.hex;
+                    ctx.beginPath();
+                    ctx.arc(px - 6, py - 10, 5, 0, Math.PI * 2);
+                    ctx.arc(px + 6, py - 10, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Eye Pupils
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(px - 6, py - 10, 2.5, 0, Math.PI * 2);
+                    ctx.arc(px + 6, py - 10, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000000';
+                    ctx.beginPath();
+                    ctx.arc(px - 6, py - 10, 1, 0, Math.PI * 2);
+                    ctx.arc(px + 6, py - 10, 1, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Frog Crown / Player Badge Number
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 10px Fredoka';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('P' + p.id, px, py + 2);
+
+                    ctx.restore();
+                });
+            }
+        }
+
+        // Update Scoreboard and Active Player Info
+        function updateUI() {
+            if (players.length === 0) return;
+
+            const activePlayer = players[currentTurnIndex];
+
+            // Update Active Card
+            const cardName = document.getElementById('activePlayerName');
+            const cardPos = document.getElementById('activePlayerPos');
+            const cardColorDot = document.getElementById('activePlayerColorDot');
+            const turnCounter = document.getElementById('turnCounter');
+
+            cardName.textContent = activePlayer.name;
+            cardPos.textContent = `Petak ${activePlayer.position}`;
+            cardColorDot.style.backgroundColor = activePlayer.color.hex;
+            turnCounter.textContent = `Pusingan ${roundCount}`;
+
+            // Render Scoreboard Cards
+            scoreboardList.innerHTML = '';
+            
+            // Sort copy for scoreboard display by current score
+            const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+
+            sortedPlayers.forEach((p, idx) => {
+                const isCurrent = p.id === activePlayer.id;
+                const card = document.createElement('div');
+                card.className = `p-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                    isCurrent 
+                    ? 'bg-emerald-900/90 border-emerald-400 active-turn' 
+                    : 'bg-emerald-950/60 border-emerald-800/80 opacity-90'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold text-emerald-400 w-4">#${idx + 1}</span>
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white border border-white/40 shadow-sm" style="background-color: ${p.color.hex}">
+                            P${p.id}
+                        </div>
+                        <div>
+                            <div class="font-bold text-sm text-emerald-100 flex items-center gap-1.5">
+                                ${p.name}
+                                ${isCurrent ? '<span class="text-[10px] bg-emerald-500 text-emerald-950 px-1.5 py-0.2 rounded font-black">GILIRAN</span>' : ''}
+                            </div>
+                            <div class="text-[11px] text-emerald-400 flex items-center gap-2">
+                                <span><i class="fa-solid fa-location-dot text-amber-400"></i> Petak ${p.position}</span>
+                                <span>• 🪜 ${p.ladders}</span>
+                                <span>• 🐍 ${p.snakes}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-base font-black text-amber-300">${p.score}</div>
+                        <div class="text-[10px] text-emerald-400 uppercase tracking-wider">Mata</div>
+                    </div>
+                `;
+                scoreboardList.appendChild(card);
+            });
+        }
+
+        // Add message to game log
+        function addGameLog(msg) {
+            const p = document.createElement('p');
+            p.textContent = `> ${msg}`;
+            gameLog.prepend(p);
+        }
+
+        // Dice Rolling Animation & Logic
+        btnRollDice.addEventListener('click', () => {
+            if (isRolling || isMoving || gameOver) return;
+
+            sounds.playDiceRoll();
+            isRolling = true;
+            btnRollDice.disabled = true;
+            diceResultText.textContent = 'Menggolek dadu...';
+
+            let rolls = 0;
+            const maxRolls = 12;
+            const interval = setInterval(() => {
+                const tempVal = Math.floor(Math.random() * 6) + 1;
+                diceVisual.querySelector('.dice-face').textContent = tempVal;
+                diceVisual.style.transform = `rotateX(${rolls * 90}deg) rotateY(${rolls * 90}deg)`;
+                rolls++;
+
+                if (rolls >= maxRolls) {
+                    clearInterval(interval);
+                    const diceValue = Math.floor(Math.random() * 6) + 1;
+                    diceVisual.querySelector('.dice-face').textContent = diceValue;
+                    diceVisual.style.transform = `rotateX(0deg) rotateY(0deg)`;
+                    diceResultText.textContent = `Dadu menunjukkan ${diceValue}!`;
+                    
+                    isRolling = false;
+                    movePlayerStepByStep(players[currentTurnIndex], diceValue);
+                }
+            }, 70);
+        });
+
+        // Step by step smooth hop movement
+        function movePlayerStepByStep(player, steps) {
+            isMoving = true;
+            let currentStep = 0;
+
+            const stepInterval = setInterval(() => {
+                if (player.position < 100) {
+                    player.position++;
+                    player.score += 10; // +10 points per step
+                    sounds.playHop();
+                    drawBoard();
+                    updateUI();
+                }
+
+                currentStep++;
+
+                if (currentStep >= steps || player.position >= 100) {
+                    clearInterval(stepInterval);
+
+                    // Check for end tile overshoot/exact finish
+                    if (player.position >= 100) {
+                        player.position = 100;
+                        drawBoard();
+                        handleTileEffects(player, true);
+                    } else {
+                        handleTileEffects(player, false);
+                    }
+                }
+            }, 250);
+        }
+
+        // Check Snakes, Ladders, or Lotus tiles upon landing
+        function handleTileEffects(player, reachedEnd) {
+            setTimeout(() => {
+                const pos = player.position;
+
+                // 1. Reached Finish Line
+                if (reachedEnd || pos === 100) {
+                    player.score += 200; // Bonus finish points
+                    addGameLog(`🏆 ${player.name} telah sampai ke petak penamat (100) & mendapat +200 Mata Bonus!`);
+                    sounds.playVictory();
+                    drawBoard();
+                    updateUI();
+                    endGame(player);
+                    return;
+                }
+
+                // 2. Snake Bite (Head -> Tail)
+                if (SNAKES[pos]) {
+                    const tailPos = SNAKES[pos];
+                    player.snakes++;
+                    player.score = Math.max(0, player.score - 20); // Penalty
+                    sounds.playSnake();
+                    addGameLog(`🐍 AWAS! Katak ${player.name} dimakan oleh Ular di petak ${pos}! Meluncur turun ke hujung ekor di petak ${tailPos}.`);
+
+                    // Slide down to snake tail
+                    player.position = tailPos;
+                    drawBoard();
+                    updateUI();
+                } 
+                // 3. Ladder Climb
+                else if (LADDERS[pos]) {
+                    const topPos = LADDERS[pos];
+                    player.ladders++;
+                    player.score += 50; // Bonus ladder points
+                    sounds.playLadder();
+                    addGameLog(`🪜 HEBAT! Katak ${player.name} memanjat tangga di petak ${pos} hingga ke petak ${topPos}! (+50 Mata)`);
+
+                    // Climb to ladder top
+                    player.position = topPos;
+                    drawBoard();
+                    updateUI();
+                } 
+                // 4. Special Lotus Bonus Tile
+                else if (LOTUS_TILES.includes(pos)) {
+                    player.score += 30; // Lotus bonus
+                    sounds.playHop();
+                    addGameLog(`🪷 Katak ${player.name} hinggap di Teratai Emas di petak ${pos}! (+30 Mata Bonus)`);
+                    updateUI();
+                } else {
+                    addGameLog(`Katak ${player.name} mendarat di petak ${pos}.`);
+                }
+
+                // Finish turn & rotate to next player
+                nextTurn();
+            }, 300);
+        }
+
+        // Rotate turn to next player
+        function nextTurn() {
+            isMoving = false;
+            currentTurnIndex = (currentTurnIndex + 1) % players.length;
+
+            if (currentTurnIndex === 0) {
+                roundCount++;
+            }
+
+            btnRollDice.disabled = false;
+            updateUI();
+        }
+
+        // Game Over Trigger
+        function endGame(finisher) {
+            gameOver = true;
+            btnRollDice.disabled = true;
+
+            // Sort all players by total points
+            const sortedByScore = [...players].sort((a, b) => b.score - a.score);
+            const winner = sortedByScore[0];
+
+            document.getElementById('victorySubtitle').textContent = 
+                `${finisher.name} sampai di Petak Penamat! Juara keseluruhan determined by mata tertinggi.`;
+
+            const leaderboardContainer = document.getElementById('finalLeaderboard');
+            leaderboardContainer.innerHTML = '';
+
+            sortedByScore.forEach((p, idx) => {
+                const row = document.createElement('div');
+                const isWinner = idx === 0;
+                row.className = `flex items-center justify-between p-3 rounded-xl ${
+                    isWinner ? 'bg-amber-500/20 border-2 border-amber-400' : 'bg-emerald-900/50 border border-emerald-800'
+                }`;
+
+                const badge = idx === 0 ? '🥇 JUARA' : idx === 1 ? '🥈 KE-2' : idx === 2 ? '🥉 KE-3' : '4️⃣ KE-4';
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold ${isWinner ? 'text-amber-300' : 'text-emerald-400'}">${badge}</span>
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white border border-white/40" style="background-color: ${p.color.hex}">
+                            P${p.id}
+                        </div>
+                        <span class="font-bold text-sm text-emerald-100">${p.name}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-black text-lg ${isWinner ? 'text-amber-300' : 'text-emerald-200'}">${p.score} Mata</span>
+                        <div class="text-[10px] text-emerald-400">Petak Akhir: ${p.position}</div>
+                    </div>
+                `;
+                leaderboardContainer.appendChild(row);
+            });
+
+            victoryModal.classList.remove('hidden');
+        }
+
+        // Rules Modal Event Listeners
+        document.getElementById('btnRules').addEventListener('click', () => {
+            document.getElementById('rulesModal').classList.remove('hidden');
+        });
+        document.getElementById('btnCloseRules').addEventListener('click', () => {
+            document.getElementById('rulesModal').classList.add('hidden');
+        });
+        document.getElementById('btnGotIt').addEventListener('click', () => {
+            document.getElementById('rulesModal').classList.add('hidden');
+        });
+
+        // Restart Game Button
+        document.getElementById('btnPlayAgain').addEventListener('click', () => {
+            victoryModal.classList.add('hidden');
+            setupModal.classList.remove('hidden');
+        });
+
+        // Window Resize Responsiveness
+        window.addEventListener('resize', () => {
+            drawBoard();
+        });
+
+        // Initial Load setup
+        window.onload = function() {
+            initSetupDropdowns();
+            // Validate setup initially
+            document.querySelectorAll('.color-select').forEach(sel => {
+                sel.addEventListener('change', validateColors);
+            });
+        };
+    </script>
+</body>
+</html>
